@@ -1,0 +1,14 @@
+{
+  "name": "shopperino",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Core-first expense transparency app for bank transactions and orders.",
+  "scripts": {
+    "test": "node --experimental-strip-types --experimental-sqlite --test tests/*.test.ts",
+    "test:coverage": "node --experimental-strip-types --experimental-sqlite --experimental-test-coverage --test tests/*.test.ts"
+  },
+  "engines": {
+    "node": ">=24.18.0"
+  }
+}
