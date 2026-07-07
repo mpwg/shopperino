@@ -147,7 +147,7 @@ TODO: Backup- und Restore-Anleitung ergänzen.
 
 Entwicklung
 
-Die Entwicklungsdokumentation befindet sich noch im Aufbau.
+Für die lokale Entwicklung wird Node.js 26.4.0 oder neuer benötigt. Die gewünschte Version ist in `.node-version` festgehalten.
 
 Weitere Dokumente:
 
@@ -156,13 +156,20 @@ Weitere Dokumente:
 - [Implementierungsarchitektur](docs/implementation-architecture.md)
 - [Roadmap](docs/roadmap.md)
 
-Geplant sind Informationen zu:
+Lokale Prüfung:
 
-- Lokaler Entwicklungsumgebung
-- Projektstruktur
-- Build-Prozess
-- Tests
-- Release-Prozess
+```text
+npm test
+```
+
+Der Testlauf nutzt den Node Test Runner, führt die TypeScript-Dateien direkt mit `--experimental-strip-types` aus und aktiviert SQLite über `--experimental-sqlite`. Er umfasst Domain-Tests, Store-Contract-Tests und Architektur-Guards für die Core-first-Schichten.
+
+Die wichtigsten Architekturregeln:
+
+- `packages/core` enthält reine Fachlogik und darf nicht aus `packages/application`, `packages/db` oder `apps` importieren.
+- `packages/application` enthält Use Cases und Ports und darf nicht aus `packages/db` oder `apps` importieren.
+- Datenbankzugriff liegt in `packages/db`.
+- Host-Code liegt in `apps/*` und ruft Use Cases auf, statt Fachlogik selbst zu enthalten.
 
 ⸻
 
