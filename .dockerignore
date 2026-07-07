@@ -1,0 +1,7 @@
+.git
+.github
+node_modules
+npm-debug.log*
+coverage-summary.txt
+*.tar.gz
+.DS_Store

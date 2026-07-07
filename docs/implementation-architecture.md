@@ -84,7 +84,7 @@ Die erste Implementierung nutzt keine Runtime-Dependencies.
 
 Vorgaben:
 
-- Node.js 26 oder neuer
+- Node.js 24.18 oder neuer
 - TypeScript-Dateien werden mit `--experimental-strip-types` ausgeführt
 - SQLite läuft über `--experimental-sqlite`
 - Tests laufen mit dem Node Test Runner
