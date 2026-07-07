@@ -1,19 +1,42 @@
 # shopperino
 
-Eine selbst gehostete Webanwendung zur Analyse und Auswertung von Einkaufs- und Bestelldaten.
+shopperino ist eine selbst gehostete Webanwendung, die Bankdaten und Amazon-Bestellungen miteinander verknüpft, um eine klare Übersicht über persönliche Ausgaben zu schaffen.
 
-shopperino hilft dabei, persönliche Einkaufsdaten zentral zu verwalten, zu kategorisieren und auszuwerten. Ziel ist es, Daten aus verschiedenen Quellen – beispielsweise Amazon-Bestellungen oder Bankexporten – zusammenzuführen und daraus nützliche Statistiken und Erkenntnisse zu gewinnen.
+Viele Ausgaben tauchen auf dem Konto nur als einzelne Buchung auf, während die eigentlichen Details in Bestellhistorien, Rechnungen oder Versandbestätigungen liegen. shopperino führt diese Informationen zusammen: Banktransaktionen zeigen, wann und wie viel bezahlt wurde; Amazon-Bestellungen zeigen, wofür das Geld ausgegeben wurde.
 
-Die Anwendung wird vollständig selbst gehostet und als Docker-Container betrieben.
+Ziel ist eine nachvollziehbare, durchsuchbare und auswertbare Ausgabenübersicht. Die Anwendung soll helfen, Käufe automatisch zuzuordnen, Kategorien zu erkennen, wiederkehrende Ausgaben sichtbar zu machen und persönliche Einkaufsdaten langfristig besser zu verstehen.
+
+shopperino wird vollständig selbst gehostet und als Docker-Container betrieben. Die eigenen Finanz- und Bestelldaten bleiben dabei unter eigener Kontrolle.
+
+## Vision
+
+shopperino soll aus verstreuten Datenquellen eine verständliche persönliche Ausgabenhistorie machen.
+
+Im Mittelpunkt steht die Verknüpfung von:
+
+- Banktransaktionen, Konto- und Kreditkartenexporten
+- Amazon-Bestellungen, Bestellpositionen und Rechnungsdaten
+- Kategorien, Händlern, Produkten und Zeiträumen
+
+Aus diesen Daten soll eine Oberfläche entstehen, die nicht nur Zahlen anzeigt, sondern Fragen beantwortet:
+
+- Wofür habe ich mein Geld tatsächlich ausgegeben?
+- Welche Bankbuchung gehört zu welcher Bestellung?
+- Welche Produkte, Kategorien oder Händler verursachen die meisten Ausgaben?
+- Welche Ausgaben wiederholen sich?
+- Wie entwickeln sich meine Einkaufsgewohnheiten über die Zeit?
+
+shopperino ist kein Buchhaltungssystem und kein Ersatz für Banking-Software. Der Fokus liegt auf privater Ausgabentransparenz: Daten importieren, sinnvoll zusammenführen, verständlich darstellen und lokal kontrollieren.
 
 ⸻
 
-Features
+## Features
 
 Bereits geplant
 
 - 📦 Import von Amazon-Bestelldaten
 - 💳 Import von Konto- und Kreditkartenexporten
+- 🔗 Zuordnung von Banktransaktionen zu Amazon-Bestellungen
 - 🏷️ Automatische Kategorisierung von Einkäufen
 - 📊 Statistiken und Auswertungen
 - 🔍 Durchsuchbare Einkaufshistorie
@@ -23,6 +46,7 @@ Bereits geplant
 
 Geplant für spätere Versionen
 
+- Verbesserte Matching-Regeln für Teilzahlungen, Erstattungen und Sammelbuchungen
 - OCR für Rechnungen
 - Unterstützung weiterer Shops
 - Budget- und Ausgabenanalysen
