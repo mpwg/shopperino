@@ -84,7 +84,7 @@ Die erste Implementierung nutzt keine Runtime-Dependencies.
 
 Vorgaben:
 
-- Node.js 24.18 oder neuer
+- Node.js 26.4.0 oder neuer
 - TypeScript-Dateien werden mit `--experimental-strip-types` ausgeführt
 - SQLite läuft über `--experimental-sqlite`
 - Tests laufen mit dem Node Test Runner
@@ -94,6 +94,8 @@ Testaufruf:
 ```text
 npm test
 ```
+
+Der Testlauf umfasst Domain-Tests, Store-Contract-Tests und Architektur-Guards. Die Architektur-Guards prüfen, dass `packages/core` und `packages/application` keine verbotenen Abhängigkeiten auf DB- oder Host-Schichten einführen.
 
 ## Host-Modell
 
@@ -115,4 +117,5 @@ Mobile bleibt ein späterer Host. Die Architektur erlaubt sowohl eine lokale Cor
 - DB-Zugriff nur in `packages/db`
 - keine globale Datenbankverbindung in der Fachlogik
 - neue Persistenzadapter gegen die Store-Contract-Tests laufen lassen
+- Dependency-Regeln bei Architekturänderungen über `npm test` absichern
 - automatische Entscheidungen mit Score und Begründung modellieren
