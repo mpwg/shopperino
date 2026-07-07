@@ -149,6 +149,10 @@ Entwicklung
 
 Die Entwicklungsdokumentation befindet sich noch im Aufbau.
 
+Weitere Dokumente:
+
+- [Architektur](docs/architecture.md)
+
 Geplant sind Informationen zu:
 
 - Lokaler Entwicklungsumgebung
