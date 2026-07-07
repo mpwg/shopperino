@@ -152,6 +152,7 @@ Die Entwicklungsdokumentation befindet sich noch im Aufbau.
 Weitere Dokumente:
 
 - [Architektur](docs/architecture.md)
+- [Datenmodell](docs/data-model.md)
 
 Geplant sind Informationen zu:
 

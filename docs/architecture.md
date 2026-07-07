@@ -196,120 +196,33 @@ Reporting sollte nicht direkt auf Rohdaten arbeiten, sondern auf normalisierten 
 
 ## Datenmodell
 
-Das initiale Datenmodell sollte folgende Entitäten enthalten:
+Das ausführliche fachliche Datenmodell ist in [Datenmodell](data-model.md) beschrieben.
 
-### ImportRun
+Die wichtigsten Modellbereiche sind:
 
-Beschreibt einen einzelnen Importvorgang.
+- Quellen und Importe
+- Bankdaten
+- Bestelldaten
+- Matching
+- Kategorien
+- Audit und Verarbeitung
 
-Wichtige Felder:
+Für den MVP sind insbesondere folgende Entitäten relevant:
 
-- ID
-- Quelle, zum Beispiel `bank` oder `amazon`
-- Dateiname
-- Importzeitpunkt
-- Status
-- Anzahl gelesener, importierter und fehlerhafter Zeilen
-- Fehlermeldungen
+- `DataSource`
+- `ImportRun`
+- `RawRecord`
+- `BankAccount`
+- `BankTransaction`
+- `Merchant`
+- `Order`
+- `OrderItem`
+- `OrderPayment`
+- `TransactionOrderMatch`
+- `Category`
+- `CategoryAssignment`
 
-### RawRecord
-
-Speichert die unveränderte oder möglichst originalgetreue Eingabe.
-
-Wichtige Felder:
-
-- ID
-- ImportRun-ID
-- Quelltyp
-- externe Referenz
-- Rohinhalt
-- Parser-Version
-
-### BankTransaction
-
-Normalisierte Bank- oder Kreditkartentransaktion.
-
-Wichtige Felder:
-
-- ID
-- Buchungsdatum
-- Valutadatum
-- Betrag
-- Währung
-- Empfänger
-- Verwendungszweck
-- externe Referenz
-- Fingerprint
-- ImportRun-ID
-
-### AmazonOrder
-
-Normalisierte Amazon-Bestellung.
-
-Wichtige Felder:
-
-- ID
-- Bestellnummer
-- Bestelldatum
-- Versanddatum
-- Gesamtbetrag
-- Währung
-- Status
-- ImportRun-ID
-
-### AmazonOrderItem
-
-Position innerhalb einer Amazon-Bestellung.
-
-Wichtige Felder:
-
-- ID
-- AmazonOrder-ID
-- Titel
-- ASIN, falls vorhanden
-- Menge
-- Einzelpreis
-- Gesamtpreis
-- Kategorie
-
-### Match
-
-Verknüpfung zwischen Banktransaktion und Bestellung.
-
-Wichtige Felder:
-
-- ID
-- BankTransaction-ID
-- AmazonOrder-ID
-- Status
-- Confidence Score
-- Begründung
-- Erstellungsart, zum Beispiel `automatic` oder `manual`
-- bestätigt am
-
-### Category
-
-Vom System oder Nutzer verwendete Kategorie.
-
-Wichtige Felder:
-
-- ID
-- Name
-- Parent-ID
-- Farbe oder Icon
-
-### CategoryAssignment
-
-Kategoriezuordnung für Transaktionen, Bestellungen oder Positionen.
-
-Wichtige Felder:
-
-- ID
-- Zieltyp
-- Ziel-ID
-- Category-ID
-- Quelle, zum Beispiel `rule`, `manual`, `import`
-- Confidence Score
+Das Bestellmodell verwendet bewusst generische Namen wie `Order` und `OrderItem` statt `AmazonOrder`. Amazon ist die erste konkrete Quelle, aber weitere Shops sollen später ohne neues Grundmodell ergänzt werden können.
 
 ## Persistenz
 
