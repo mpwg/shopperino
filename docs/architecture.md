@@ -21,6 +21,12 @@ shopperino ist eine selbst gehostete Anwendung für private Ausgabentransparenz.
 
 ## Architekturüberblick
 
+shopperino wird als Core-first-Anwendung aufgebaut. Der fachliche Core ist unabhängig von HTTP, UI und konkreter Datenbank. Dadurch kann dieselbe Logik in mehreren Hosts laufen:
+
+- Self-hosted Web-App im Docker-Container
+- lokale Desktop-App, bevorzugt mit Tauri
+- spätere Mobile-App oder API-basierte Mobile-Oberfläche
+
 Die Anwendung besteht aus fünf fachlichen Schichten:
 
 1. Benutzeroberfläche
@@ -33,10 +39,13 @@ Die Anwendung besteht aus fünf fachlichen Schichten:
 Browser
   |
   v
-Web UI
+Web UI / Desktop UI / Mobile UI
   |
   v
-HTTP API
+Host Adapter
+  |
+  v
+Application Use Cases
   |
   +--> Import Services
   |      +--> Bank Importer
@@ -51,10 +60,15 @@ HTTP API
   +--> Query/Reporting Services
   |
   v
-Database + File Storage
+Repository Ports
+  |
+  v
+Database + File Storage Adapter
 ```
 
 Die Schichten sollen fachlich klar getrennt bleiben. Importer lesen externe Formate, Normalizer erzeugen interne Modelle, die Matching Engine verknüpft Datensätze, und Reporting Services liefern vorbereitete Sichten für Dashboard, Suche und Auswertungen.
+
+Die konkrete Implementierungsstruktur ist in [Implementierungsarchitektur](implementation-architecture.md) beschrieben.
 
 ## Datenfluss
 
@@ -269,6 +283,16 @@ Minimal benötigte Konfiguration:
 - `DATA_DIR`
 
 Für den MVP sollte keine externe Infrastruktur erforderlich sein.
+
+## Plattform-Hosts
+
+Die erste Umsetzung priorisiert den fachlichen Core und eine austauschbare Persistenzschicht. Hosts sind dünne Einstiegspunkte:
+
+- `apps/server`: Self-hosted Betrieb mit HTTP-API und Weboberfläche
+- `apps/desktop`: lokale Desktop-Verpackung, geplant mit Tauri
+- Mobile: späterer Host, der entweder lokal mit einem Core-Subset oder über die Server-API arbeiten kann
+
+Host-Code darf keine Fachlogik enthalten. Er validiert Eingaben, ruft Use Cases auf und stellt Ergebnisse dar.
 
 ## Sicherheit und Datenschutz
 

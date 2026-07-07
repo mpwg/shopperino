@@ -153,6 +153,7 @@ Weitere Dokumente:
 
 - [Architektur](docs/architecture.md)
 - [Datenmodell](docs/data-model.md)
+- [Implementierungsarchitektur](docs/implementation-architecture.md)
 
 Geplant sind Informationen zu:
 
