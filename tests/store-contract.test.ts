@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { createManualMatch } from "../packages/core/index.ts";
+import { createDataSource, createImportRun, createManualMatch, createRawRecord } from "../packages/core/index.ts";
 import type { ShopperinoStore } from "../packages/application/index.ts";
 import {
   confirmTransactionOrderMatchUseCase,
@@ -37,6 +37,74 @@ describe("ShopperinoStore contract", () => {
       },
     },
   ]) {
+    it(`${fixture.name} persists data sources, import runs and raw records`, async () => {
+      const context = fixture.create() as StoreFixture;
+      try {
+        const dataSource = createDataSource({
+          id: "source-1",
+          kind: "bank",
+          provider: "erste_bank",
+          sourceType: "csv",
+          displayName: "Erste Bank CSV",
+          config: {
+            dateColumn: "Buchungsdatum",
+            amountColumn: "Betrag",
+          },
+          createdAt: "2026-07-01T00:00:00.000Z",
+          updatedAt: "2026-07-01T00:00:00.000Z",
+        });
+        await context.store.dataSources.save(dataSource);
+
+        const importRun = createImportRun({
+          id: "import-run-1",
+          dataSourceId: dataSource.id,
+          sourceKind: "bank",
+          inputType: "csv",
+          fileName: "konto.csv",
+          fileHash: "sha256:test-file",
+          parserName: "bank-csv",
+          parserVersion: "0.1.0",
+          status: "running",
+          startedAt: "2026-07-02T00:00:00.000Z",
+        });
+        await context.store.importRuns.save(importRun);
+
+        const completedImportRun = {
+          ...importRun,
+          status: "completed" as const,
+          finishedAt: "2026-07-02T00:05:00.000Z",
+          recordsSeen: 1,
+          recordsImported: 1,
+        };
+        await context.store.importRuns.save(completedImportRun);
+
+        const rawRecord = createRawRecord({
+          id: "raw-record-1",
+          importRunId: importRun.id,
+          recordType: "bank_transaction",
+          externalId: "booking-1",
+          lineNumber: 2,
+          rawPayload: {
+            Buchungsdatum: "2026-07-02",
+            Betrag: "-49,99",
+            Text: "AMAZON MARKETPLACE",
+          },
+          parseStatus: "parsed",
+          createdAt: "2026-07-02T00:01:00.000Z",
+        });
+        await context.store.rawRecords.save(rawRecord);
+
+        assert.deepEqual(await context.store.dataSources.findById(dataSource.id), dataSource);
+        assert.equal((await context.store.dataSources.list()).length, 1);
+        assert.deepEqual(await context.store.importRuns.findById(importRun.id), completedImportRun);
+        assert.deepEqual(await context.store.importRuns.listByDataSourceId(dataSource.id), [completedImportRun]);
+        assert.deepEqual(await context.store.rawRecords.findById(rawRecord.id), rawRecord);
+        assert.deepEqual(await context.store.rawRecords.listByImportRunId(importRun.id), [rawRecord]);
+      } finally {
+        context.close?.();
+      }
+    });
+
     it(`${fixture.name} persists transactions, orders and matches`, async () => {
       const context = fixture.create() as StoreFixture;
       try {

@@ -1,11 +1,15 @@
 import { DatabaseSync } from "node:sqlite";
 import type { BankTransaction } from "../core/bank-transaction.ts";
+import type { DataSource, ImportRun, RawRecord } from "../core/import.ts";
 import type { TransactionOrderMatch } from "../core/match.ts";
 import type { Order, OrderItem, OrderPayment } from "../core/order.ts";
 import type {
   BankTransactionRepository,
+  DataSourceRepository,
+  ImportRunRepository,
   MatchRepository,
   OrderRepository,
+  RawRecordRepository,
   ShopperinoStore,
 } from "../application/ports.ts";
 
@@ -20,6 +24,9 @@ export function createSqliteStore(databasePath: string): SqliteShopperinoStore {
   initializeSqliteSchema(database);
 
   return {
+    dataSources: new SqliteDataSourceRepository(database),
+    importRuns: new SqliteImportRunRepository(database),
+    rawRecords: new SqliteRawRecordRepository(database),
     bankTransactions: new SqliteBankTransactionRepository(database),
     orders: new SqliteOrderRepository(database),
     matches: new SqliteMatchRepository(database),
@@ -32,6 +39,48 @@ export function createSqliteStore(databasePath: string): SqliteShopperinoStore {
 export function initializeSqliteSchema(database: DatabaseSync): void {
   database.exec(`
     PRAGMA foreign_keys = ON;
+
+    CREATE TABLE IF NOT EXISTS data_sources (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      config_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS import_runs (
+      id TEXT PRIMARY KEY,
+      data_source_id TEXT NOT NULL REFERENCES data_sources(id) ON DELETE RESTRICT,
+      source_kind TEXT NOT NULL,
+      input_type TEXT NOT NULL,
+      file_name TEXT,
+      file_hash TEXT,
+      parser_name TEXT NOT NULL,
+      parser_version TEXT NOT NULL,
+      status TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      finished_at TEXT,
+      records_seen INTEGER NOT NULL,
+      records_imported INTEGER NOT NULL,
+      records_failed INTEGER NOT NULL,
+      error_summary TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS raw_records (
+      id TEXT PRIMARY KEY,
+      import_run_id TEXT NOT NULL REFERENCES import_runs(id) ON DELETE CASCADE,
+      record_type TEXT NOT NULL,
+      external_id TEXT,
+      line_number INTEGER,
+      raw_payload_json TEXT NOT NULL,
+      payload_hash TEXT NOT NULL,
+      parse_status TEXT NOT NULL,
+      parse_error TEXT,
+      created_at TEXT NOT NULL
+    );
 
     CREATE TABLE IF NOT EXISTS bank_transactions (
       id TEXT PRIMARY KEY,
@@ -114,6 +163,179 @@ export function initializeSqliteSchema(database: DatabaseSync): void {
       rejected_at TEXT
     );
   `);
+}
+
+class SqliteDataSourceRepository implements DataSourceRepository {
+  private readonly database: DatabaseSync;
+
+  constructor(database: DatabaseSync) {
+    this.database = database;
+  }
+
+  async save(dataSource: DataSource): Promise<void> {
+    this.database
+      .prepare(`
+        INSERT INTO data_sources (
+          id, kind, provider, source_type, display_name, config_json, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          kind = excluded.kind,
+          provider = excluded.provider,
+          source_type = excluded.source_type,
+          display_name = excluded.display_name,
+          config_json = excluded.config_json,
+          created_at = excluded.created_at,
+          updated_at = excluded.updated_at
+      `)
+      .run(
+        dataSource.id,
+        dataSource.kind,
+        dataSource.provider,
+        dataSource.sourceType,
+        dataSource.displayName,
+        JSON.stringify(dataSource.config),
+        dataSource.createdAt,
+        dataSource.updatedAt,
+      );
+  }
+
+  async findById(id: string): Promise<DataSource | null> {
+    return dataSourceFromRow(this.database.prepare("SELECT * FROM data_sources WHERE id = ?").get(id));
+  }
+
+  async list(): Promise<DataSource[]> {
+    return this.database
+      .prepare("SELECT * FROM data_sources ORDER BY created_at, id")
+      .all()
+      .map((row) => dataSourceFromRow(row))
+      .filter((dataSource) => dataSource !== null);
+  }
+}
+
+class SqliteImportRunRepository implements ImportRunRepository {
+  private readonly database: DatabaseSync;
+
+  constructor(database: DatabaseSync) {
+    this.database = database;
+  }
+
+  async save(importRun: ImportRun): Promise<void> {
+    this.database
+      .prepare(`
+        INSERT INTO import_runs (
+          id, data_source_id, source_kind, input_type, file_name, file_hash,
+          parser_name, parser_version, status, started_at, finished_at,
+          records_seen, records_imported, records_failed, error_summary
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          data_source_id = excluded.data_source_id,
+          source_kind = excluded.source_kind,
+          input_type = excluded.input_type,
+          file_name = excluded.file_name,
+          file_hash = excluded.file_hash,
+          parser_name = excluded.parser_name,
+          parser_version = excluded.parser_version,
+          status = excluded.status,
+          started_at = excluded.started_at,
+          finished_at = excluded.finished_at,
+          records_seen = excluded.records_seen,
+          records_imported = excluded.records_imported,
+          records_failed = excluded.records_failed,
+          error_summary = excluded.error_summary
+      `)
+      .run(
+        importRun.id,
+        importRun.dataSourceId,
+        importRun.sourceKind,
+        importRun.inputType,
+        importRun.fileName ?? null,
+        importRun.fileHash ?? null,
+        importRun.parserName,
+        importRun.parserVersion,
+        importRun.status,
+        importRun.startedAt,
+        importRun.finishedAt ?? null,
+        importRun.recordsSeen,
+        importRun.recordsImported,
+        importRun.recordsFailed,
+        importRun.errorSummary ?? null,
+      );
+  }
+
+  async findById(id: string): Promise<ImportRun | null> {
+    return importRunFromRow(this.database.prepare("SELECT * FROM import_runs WHERE id = ?").get(id));
+  }
+
+  async list(): Promise<ImportRun[]> {
+    return this.database
+      .prepare("SELECT * FROM import_runs ORDER BY started_at, id")
+      .all()
+      .map((row) => importRunFromRow(row))
+      .filter((importRun) => importRun !== null);
+  }
+
+  async listByDataSourceId(dataSourceId: string): Promise<ImportRun[]> {
+    return this.database
+      .prepare("SELECT * FROM import_runs WHERE data_source_id = ? ORDER BY started_at, id")
+      .all(dataSourceId)
+      .map((row) => importRunFromRow(row))
+      .filter((importRun) => importRun !== null);
+  }
+}
+
+class SqliteRawRecordRepository implements RawRecordRepository {
+  private readonly database: DatabaseSync;
+
+  constructor(database: DatabaseSync) {
+    this.database = database;
+  }
+
+  async save(rawRecord: RawRecord): Promise<void> {
+    this.database
+      .prepare(`
+        INSERT INTO raw_records (
+          id, import_run_id, record_type, external_id, line_number, raw_payload_json,
+          payload_hash, parse_status, parse_error, created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          import_run_id = excluded.import_run_id,
+          record_type = excluded.record_type,
+          external_id = excluded.external_id,
+          line_number = excluded.line_number,
+          raw_payload_json = excluded.raw_payload_json,
+          payload_hash = excluded.payload_hash,
+          parse_status = excluded.parse_status,
+          parse_error = excluded.parse_error,
+          created_at = excluded.created_at
+      `)
+      .run(
+        rawRecord.id,
+        rawRecord.importRunId,
+        rawRecord.recordType,
+        rawRecord.externalId ?? null,
+        rawRecord.lineNumber ?? null,
+        JSON.stringify(rawRecord.rawPayload),
+        rawRecord.payloadHash,
+        rawRecord.parseStatus,
+        rawRecord.parseError ?? null,
+        rawRecord.createdAt,
+      );
+  }
+
+  async findById(id: string): Promise<RawRecord | null> {
+    return rawRecordFromRow(this.database.prepare("SELECT * FROM raw_records WHERE id = ?").get(id));
+  }
+
+  async listByImportRunId(importRunId: string): Promise<RawRecord[]> {
+    return this.database
+      .prepare("SELECT * FROM raw_records WHERE import_run_id = ? ORDER BY created_at, id")
+      .all(importRunId)
+      .map((row) => rawRecordFromRow(row))
+      .filter((rawRecord) => rawRecord !== null);
+  }
 }
 
 class SqliteBankTransactionRepository implements BankTransactionRepository {
@@ -465,6 +687,69 @@ class SqliteMatchRepository implements MatchRepository {
       .map((row) => matchFromRow(row))
       .filter((match) => match !== null);
   }
+}
+
+function dataSourceFromRow(row: unknown): DataSource | null {
+  if (!row) {
+    return null;
+  }
+
+  const data = row as SqliteRow;
+  return {
+    id: String(data.id),
+    kind: String(data.kind) as DataSource["kind"],
+    provider: String(data.provider),
+    sourceType: String(data.source_type) as DataSource["sourceType"],
+    displayName: String(data.display_name),
+    config: JSON.parse(String(data.config_json)) as Record<string, unknown>,
+    createdAt: String(data.created_at),
+    updatedAt: String(data.updated_at),
+  };
+}
+
+function importRunFromRow(row: unknown): ImportRun | null {
+  if (!row) {
+    return null;
+  }
+
+  const data = row as SqliteRow;
+  return {
+    id: String(data.id),
+    dataSourceId: String(data.data_source_id),
+    sourceKind: String(data.source_kind) as ImportRun["sourceKind"],
+    inputType: String(data.input_type) as ImportRun["inputType"],
+    fileName: optionalString(data.file_name),
+    fileHash: optionalString(data.file_hash),
+    parserName: String(data.parser_name),
+    parserVersion: String(data.parser_version),
+    status: String(data.status) as ImportRun["status"],
+    startedAt: String(data.started_at),
+    finishedAt: optionalString(data.finished_at),
+    recordsSeen: Number(data.records_seen),
+    recordsImported: Number(data.records_imported),
+    recordsFailed: Number(data.records_failed),
+    errorSummary: optionalString(data.error_summary),
+  };
+}
+
+function rawRecordFromRow(row: unknown): RawRecord | null {
+  if (!row) {
+    return null;
+  }
+
+  const data = row as SqliteRow;
+  return {
+    id: String(data.id),
+    importRunId: String(data.import_run_id),
+    recordType: String(data.record_type) as RawRecord["recordType"],
+    externalId: optionalString(data.external_id),
+    lineNumber: data.line_number === null ? undefined : Number(data.line_number),
+    rawPayload: JSON.parse(String(data.raw_payload_json)) as unknown,
+    payloadHash: String(data.payload_hash),
+    parseStatus: String(data.parse_status) as RawRecord["parseStatus"],
+    parseError: optionalString(data.parse_error),
+    createdAt: String(data.created_at),
+  };
 }
 
 function bankTransactionFromRow(row: unknown): BankTransaction | null {
