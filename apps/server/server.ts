@@ -2,7 +2,9 @@ import { createServer as createNodeServer, type IncomingMessage, type Server, ty
 import {
   confirmTransactionOrderMatchUseCase,
   createBankTransactionUseCase,
+  createManualTransactionOrderMatchUseCase,
   createOrderUseCase,
+  rejectTransactionOrderMatchUseCase,
   suggestTransactionOrderMatchesUseCase,
   type ShopperinoStore,
 } from "../../packages/application/index.ts";
@@ -75,6 +77,12 @@ async function handleRequest(
     return;
   }
 
+  if (method === "POST" && url.pathname === "/api/matches/manual") {
+    const match = await createManualTransactionOrderMatchUseCase({ store }, await readJsonObject(request));
+    writeJson(response, 201, { match });
+    return;
+  }
+
   const confirmMatch = url.pathname.match(/^\/api\/matches\/([^/]+)\/confirm$/);
   if (method === "POST" && confirmMatch) {
     const body = await readOptionalJsonObject(request);
@@ -83,6 +91,20 @@ async function handleRequest(
       {
         matchId: decodeURIComponent(confirmMatch[1]),
         confirmedAt: typeof body.confirmedAt === "string" ? body.confirmedAt : undefined,
+      },
+    );
+    writeJson(response, 200, { match });
+    return;
+  }
+
+  const rejectMatch = url.pathname.match(/^\/api\/matches\/([^/]+)\/reject$/);
+  if (method === "POST" && rejectMatch) {
+    const body = await readOptionalJsonObject(request);
+    const match = await rejectTransactionOrderMatchUseCase(
+      { store },
+      {
+        matchId: decodeURIComponent(rejectMatch[1]),
+        rejectedAt: typeof body.rejectedAt === "string" ? body.rejectedAt : undefined,
       },
     );
     writeJson(response, 200, { match });

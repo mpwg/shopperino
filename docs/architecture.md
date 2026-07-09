@@ -158,6 +158,7 @@ MVP-Regeln:
 - Buchungsdatum liegt nahe am Bestell- oder Versanddatum
 - Empfänger oder Verwendungszweck enthält erkennbare Amazon-Hinweise
 - bekannte Bestellnummern oder Zahlungsreferenzen werden bevorzugt
+- Kreditkarten-Zahlungen aus Amazon-Bestellungen dürfen als Teil einer größeren Kartenbuchung vorgeschlagen werden
 
 Spätere Regeln:
 
@@ -178,6 +179,8 @@ Beispielstatus:
 - `manual`: manuell angelegt
 
 Automatische Matches dürfen manuelle Entscheidungen nicht überschreiben.
+Bestätigte, manuelle und abgelehnte Entscheidungen blockieren weitere
+automatische Vorschläge für dasselbe Paar.
 
 ### Category Engine
 

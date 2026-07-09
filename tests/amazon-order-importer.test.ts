@@ -116,6 +116,62 @@ describe("Amazon order history importer", () => {
     assert.equal((await store.rawRecords.listByImportRunId(secondImport.importRun.id)).length, 3);
   });
 
+  it("deduplicates overlapping order exports while preserving import runs", async () => {
+    const store = createInMemoryStore();
+    await store.dataSources.save(
+      createDataSource({
+        id: "source-amazon-overlap",
+        kind: "orders",
+        provider: "amazon",
+        sourceType: "csv",
+        displayName: "Amazon Order History",
+      }),
+    );
+
+    const header =
+      "ASIN,Currency,Order Date,Order ID,Order Status,Original Quantity,Payment Method Type,Product Name,Ship Date,Shipment Status,Total Amount,Unit Price\n";
+    const inputBase = {
+      idFactory: sequenceIds("overlap"),
+      now: fixedNow("2026-07-09T10:00:00.000Z"),
+    };
+    const firstImport = await importAmazonOrdersUseCase(
+      { store },
+      {
+        ...inputBase,
+        source: {
+          dataSourceId: "source-amazon-overlap",
+          inputType: "csv",
+          payload:
+            header +
+            "BJAN,EUR,2026-01-05T00:00:00Z,303-0000000-0000101,Closed,1,Visa,January item,2026-01-06T00:00:00Z,Shipped,10.00,10.00\n" +
+            "BFEB,EUR,2026-02-05T00:00:00Z,303-0000000-0000102,Closed,1,Visa,February item,2026-02-06T00:00:00Z,Shipped,20.00,20.00\n" +
+            "BMAR,EUR,2026-03-05T00:00:00Z,303-0000000-0000103,Closed,1,Visa,March item,2026-03-06T00:00:00Z,Shipped,30.00,30.00",
+        },
+      },
+    );
+    const secondImport = await importAmazonOrdersUseCase(
+      { store },
+      {
+        ...inputBase,
+        source: {
+          dataSourceId: "source-amazon-overlap",
+          inputType: "csv",
+          payload:
+            header +
+            "BFEB,EUR,2026-02-05T00:00:00Z,303-0000000-0000102,Closed,1,Visa,February item,2026-02-06T00:00:00Z,Shipped,20.00,20.00\n" +
+            "BMAR,EUR,2026-03-05T00:00:00Z,303-0000000-0000103,Closed,1,Visa,March item,2026-03-06T00:00:00Z,Shipped,30.00,30.00\n" +
+            "BAPR,EUR,2026-04-05T00:00:00Z,303-0000000-0000104,Closed,1,Visa,April item,2026-04-06T00:00:00Z,Shipped,40.00,40.00",
+        },
+      },
+    );
+
+    assert.equal(firstImport.importRun.recordsImported, 3);
+    assert.equal(secondImport.importRun.recordsImported, 3);
+    assert.equal((await store.orders.list()).length, 4);
+    assert.equal((await store.rawRecords.listByImportRunId(firstImport.importRun.id)).length, 3);
+    assert.equal((await store.rawRecords.listByImportRunId(secondImport.importRun.id)).length, 3);
+  });
+
   it("parses the local real Amazon order history export when it is present", async (context) => {
     if (!existsSync(localRealFixturePath)) {
       context.skip("samples/Amazon order history is local-only");

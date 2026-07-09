@@ -89,6 +89,59 @@ describe("Bank CSV importer", () => {
     assert.equal((await store.rawRecords.listByImportRunId(secondImport.importRun.id)).length, 4);
   });
 
+  it("deduplicates overlapping exports while keeping every import traceable", async () => {
+    const store = createInMemoryStore();
+    await store.dataSources.save(
+      createDataSource({
+        id: "source-bank-overlap",
+        kind: "bank",
+        provider: "erste_bank",
+        sourceType: "csv",
+        displayName: "Bank CSV",
+      }),
+    );
+
+    const inputBase = {
+      profile: { bankAccountId: "account-overlap" },
+      idFactory: sequenceIds("overlap"),
+      now: fixedNow("2026-07-09T10:00:00.000Z"),
+    };
+    const firstImport = await importBankCsvUseCase(
+      { store },
+      {
+        ...inputBase,
+        source: {
+          dataSourceId: "source-bank-overlap",
+          inputType: "csv",
+          payload:
+            "01.01.2026;AMAZON 01;01.01.2026;-10,00;EUR;booking-jan\n" +
+            "01.02.2026;AMAZON 02;01.02.2026;-20,00;EUR;booking-feb\n" +
+            "01.03.2026;AMAZON 03;01.03.2026;-30,00;EUR;booking-mar",
+        },
+      },
+    );
+    const secondImport = await importBankCsvUseCase(
+      { store },
+      {
+        ...inputBase,
+        source: {
+          dataSourceId: "source-bank-overlap",
+          inputType: "csv",
+          payload:
+            "01.02.2026;AMAZON 02;01.02.2026;-20,00;EUR;booking-feb\n" +
+            "01.03.2026;AMAZON 03;01.03.2026;-30,00;EUR;booking-mar\n" +
+            "01.04.2026;AMAZON 04;01.04.2026;-40,00;EUR;booking-apr",
+        },
+      },
+    );
+
+    assert.equal(firstImport.importRun.recordsImported, 3);
+    assert.equal(secondImport.importRun.recordsImported, 3);
+    assert.equal((await store.bankTransactions.list()).length, 4);
+    assert.equal((await store.rawRecords.listByImportRunId(firstImport.importRun.id)).length, 3);
+    assert.equal((await store.rawRecords.listByImportRunId(secondImport.importRun.id)).length, 3);
+  });
+
   it("parses the local real bank export when it is present", async (context) => {
     if (!existsSync(localRealFixturePath)) {
       context.skip("samples/bank.csv is local-only");

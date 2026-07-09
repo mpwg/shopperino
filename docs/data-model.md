@@ -493,6 +493,12 @@ Typische Zuordnung:
 
 Das Modell heißt bewusst `Order` statt `AmazonOrder`, damit später weitere Shops ergänzt werden können.
 
+Wiederholte oder überlappende Exporte sind erlaubt. Wenn zum Beispiel eine
+Amazon-Datei `01/26 - 03/26` und die nächste Datei `02/26 - 04/26` enthält,
+bleiben beide `ImportRun`-Einträge und ihre `RawRecord`-Spuren erhalten. Die
+normalisierten `Order`-Datensätze werden aber über ihren Fingerprint
+dedupliziert, sodass Februar und März nicht doppelt im Bestellbestand landen.
+
 ## Matching-Grundlage
 
 Für den ersten Matching-Algorithmus sind diese Felder besonders wichtig:
@@ -518,6 +524,23 @@ Ein guter Match ist im MVP meistens:
 - Bankbuchung innerhalb weniger Tage nach Bestellung oder Versand
 - Amazon-Hinweis im Buchungstext
 - keine Nutzerentscheidung, die dagegen spricht
+
+Amazon-Zahlungen können über Kreditkarten laufen und erscheinen dann nicht
+zwingend als einzelne Amazon-Zeile im Bankexport. Wenn die Bestelldaten eine
+Kreditkarten-Zahlungsart enthalten, darf eine Bestellung deshalb auch als
+`partial`-Vorschlag zu einer größeren Kartenbuchung erscheinen. Der Match bleibt
+ein Vorschlag mit niedrigerem Score und muss vom Nutzer bestätigt oder manuell
+geordnet werden.
+
+Wiederholte oder überlappende Bankexporte werden analog zum Amazon-Import
+behandelt: jeder Import bleibt nachvollziehbar, aber identische normalisierte
+`BankTransaction`-Datensätze werden anhand ihres Fingerprints nur einmal
+gespeichert. Dadurch erzeugen wiederholte Imports auch keine neuen
+Match-Vorschläge für dasselbe Transaktion-Bestellung-Paar.
+
+Bereits bestätigte, manuelle oder abgelehnte Match-Entscheidungen bleiben
+stabil. Automatische Vorschläge dürfen diese Entscheidungen nicht überschreiben,
+und abgelehnte Kandidaten werden nicht erneut als neue Vorschläge angelegt.
 
 ## MVP-Datenmodell
 

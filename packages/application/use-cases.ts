@@ -3,8 +3,10 @@ import {
   confirmMatch,
   createBankTransaction,
   createImportRun,
+  createManualMatch,
   createOrder,
   createRawRecord,
+  rejectMatch,
   suggestMatchForPair,
   type BankTransaction,
   type CreateBankTransactionInput,
@@ -250,6 +252,68 @@ export async function confirmTransactionOrderMatchUseCase(
   const confirmed = confirmMatch(match, input.confirmedAt);
   await context.store.matches.save(confirmed);
   return confirmed;
+}
+
+export async function rejectTransactionOrderMatchUseCase(
+  context: UseCaseContext,
+  input: { matchId: string; rejectedAt?: string },
+): Promise<TransactionOrderMatch> {
+  const match = await context.store.matches.findById(input.matchId);
+  if (!match) {
+    throw new Error(`Match not found: ${input.matchId}`);
+  }
+
+  const rejected = rejectMatch(match, input.rejectedAt);
+  await context.store.matches.save(rejected);
+  return rejected;
+}
+
+export async function createManualTransactionOrderMatchUseCase(
+  context: UseCaseContext,
+  input: {
+    bankTransactionId: string;
+    orderId: string;
+    orderPaymentId?: string;
+    reason?: string;
+    createdAt?: string;
+    id?: string;
+  },
+): Promise<TransactionOrderMatch> {
+  const transaction = await context.store.bankTransactions.findById(input.bankTransactionId);
+  if (!transaction) {
+    throw new Error(`Bank transaction not found: ${input.bankTransactionId}`);
+  }
+
+  const order = await context.store.orders.findById(input.orderId);
+  if (!order) {
+    throw new Error(`Order not found: ${input.orderId}`);
+  }
+
+  const payment = input.orderPaymentId ? order.payments.find((candidate) => candidate.id === input.orderPaymentId) : undefined;
+  if (input.orderPaymentId && !payment) {
+    throw new Error(`Order payment not found: ${input.orderPaymentId}`);
+  }
+
+  const existing = await context.store.matches.findByTransactionAndOrder(transaction.id, order.id);
+  if (existing.some((match) => match.status === "confirmed" || match.status === "manual")) {
+    throw new Error("A confirmed or manual match already exists for this transaction and order");
+  }
+
+  const comparableAmountMinor = payment?.amount.amountMinor ?? order.totalAmount.amountMinor;
+  const orderDate = payment?.paymentDate ?? order.shipmentDate ?? order.orderDate;
+  const manual = createManualMatch({
+    id: input.id ?? randomUUID(),
+    bankTransactionId: transaction.id,
+    orderId: order.id,
+    orderPaymentId: payment?.id,
+    amountDeltaMinor: Math.abs(transaction.amount.amountMinor - comparableAmountMinor),
+    bankBookingDate: transaction.bookingDate,
+    orderDate,
+    reason: input.reason ?? "User created this match manually.",
+    createdAt: input.createdAt,
+  });
+  await context.store.matches.save(manual);
+  return manual;
 }
 
 function summarizeErrors(errors: string[]): string | undefined {
