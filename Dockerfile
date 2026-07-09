@@ -3,6 +3,8 @@ FROM node:26.4.0-bookworm-slim
 WORKDIR /app
 
 COPY package.json ./
+COPY apps ./apps
+COPY docs/examples ./docs/examples
 COPY packages ./packages
 COPY tests ./tests
 
