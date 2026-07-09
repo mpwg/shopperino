@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Core-first expense transparency app for bank transactions and orders.",
   "scripts": {
+    "server": "node --experimental-strip-types --experimental-sqlite apps/server/index.ts",
     "test": "node --experimental-strip-types --experimental-sqlite --test tests/*.test.ts tests/architecture/*.test.ts",
     "test:coverage": "node --experimental-strip-types --experimental-sqlite --experimental-test-coverage --test tests/*.test.ts tests/architecture/*.test.ts"
   },
