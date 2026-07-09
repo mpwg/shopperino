@@ -2,18 +2,44 @@ import { randomUUID } from "node:crypto";
 import {
   confirmMatch,
   createBankTransaction,
+  createImportRun,
   createOrder,
+  createRawRecord,
   suggestMatchForPair,
   type BankTransaction,
   type CreateBankTransactionInput,
   type CreateOrderInput,
+  type ImportRun,
   type Order,
+  type RawRecord,
   type TransactionOrderMatch,
 } from "../core/index.ts";
-import type { ShopperinoStore } from "./ports.ts";
+import type { Importer, ImportSource, ParsedImportRecord, ShopperinoStore } from "./ports.ts";
 
 export type UseCaseContext = {
   store: ShopperinoStore;
+};
+
+export type ImportNormalizedRecordContext = {
+  importRun: ImportRun;
+  rawRecord: RawRecord;
+};
+
+export type ExecuteImportInput<TNormalized> = {
+  importer: Importer<TNormalized>;
+  source: ImportSource;
+  persistParsedRecord?: (
+    record: ParsedImportRecord<TNormalized>,
+    context: ImportNormalizedRecordContext,
+  ) => Promise<void> | void;
+  idFactory?: () => string;
+  now?: () => string;
+};
+
+export type ExecuteImportResult<TNormalized> = {
+  importRun: ImportRun;
+  rawRecords: RawRecord[];
+  parsed: Array<ParsedImportRecord<TNormalized> & { rawRecordId: string }>;
 };
 
 export async function createBankTransactionUseCase(
@@ -50,6 +76,132 @@ export async function createOrderUseCase(
 
   await context.store.orders.save(order);
   return order;
+}
+
+export async function executeImportUseCase<TNormalized>(
+  context: UseCaseContext,
+  input: ExecuteImportInput<TNormalized>,
+): Promise<ExecuteImportResult<TNormalized>> {
+  const idFactory = input.idFactory ?? randomUUID;
+  const now = input.now ?? (() => new Date().toISOString());
+  const dataSource = await context.store.dataSources.findById(input.source.dataSourceId);
+
+  if (!dataSource) {
+    throw new Error(`Data source not found: ${input.source.dataSourceId}`);
+  }
+  if (dataSource.kind !== input.importer.sourceKind) {
+    throw new Error(`Importer source kind ${input.importer.sourceKind} does not match data source kind ${dataSource.kind}`);
+  }
+  if (input.source.inputType !== input.importer.inputType) {
+    throw new Error(`Importer input type ${input.importer.inputType} does not match source input type ${input.source.inputType}`);
+  }
+
+  const startedAt = now();
+  const importRun = createImportRun({
+    id: idFactory(),
+    dataSourceId: dataSource.id,
+    sourceKind: dataSource.kind,
+    inputType: input.source.inputType,
+    fileName: input.source.fileName,
+    fileHash: input.source.fileHash,
+    parserName: input.importer.name,
+    parserVersion: input.importer.version,
+    status: "running",
+    startedAt,
+  });
+  await context.store.importRuns.save(importRun);
+
+  try {
+    const parseResult = await input.importer.parse(input.source);
+    const parsed = parseResult.parsed;
+    const skipped = parseResult.skipped ?? [];
+    const failed = parseResult.failed ?? [];
+    const rawRecords: RawRecord[] = [];
+    const parsedWithRawRecordIds: Array<ParsedImportRecord<TNormalized> & { rawRecordId: string }> = [];
+
+    for (const record of parsed) {
+      const rawRecord = createRawRecord({
+        id: idFactory(),
+        importRunId: importRun.id,
+        recordType: record.recordType,
+        externalId: record.externalId,
+        lineNumber: record.lineNumber,
+        rawPayload: record.rawPayload,
+        parseStatus: "parsed",
+        createdAt: now(),
+      });
+      await context.store.rawRecords.save(rawRecord);
+      await input.persistParsedRecord?.(record, { importRun, rawRecord });
+      rawRecords.push(rawRecord);
+      parsedWithRawRecordIds.push({ ...record, rawRecordId: rawRecord.id });
+    }
+
+    for (const record of skipped) {
+      const rawRecord = createRawRecord({
+        id: idFactory(),
+        importRunId: importRun.id,
+        recordType: record.recordType ?? "unknown",
+        externalId: record.externalId,
+        lineNumber: record.lineNumber,
+        rawPayload: record.rawPayload,
+        parseStatus: "skipped",
+        parseError: record.reason,
+        createdAt: now(),
+      });
+      await context.store.rawRecords.save(rawRecord);
+      rawRecords.push(rawRecord);
+    }
+
+    for (const record of failed) {
+      const rawRecord = createRawRecord({
+        id: idFactory(),
+        importRunId: importRun.id,
+        recordType: record.recordType ?? "unknown",
+        externalId: record.externalId,
+        lineNumber: record.lineNumber,
+        rawPayload: record.rawPayload,
+        parseStatus: "failed",
+        parseError: record.error,
+        createdAt: now(),
+      });
+      await context.store.rawRecords.save(rawRecord);
+      rawRecords.push(rawRecord);
+    }
+
+    const completedImportRun = createImportRun({
+      ...importRun,
+      status: failed.length > 0 ? "completed_with_errors" : "completed",
+      finishedAt: now(),
+      recordsSeen: parsed.length + skipped.length + failed.length,
+      recordsImported: parsed.length,
+      recordsFailed: failed.length,
+      errorSummary: summarizeErrors(failed.map((record) => record.error)),
+    });
+    await context.store.importRuns.save(completedImportRun);
+
+    return {
+      importRun: completedImportRun,
+      rawRecords,
+      parsed: parsedWithRawRecordIds,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const failedImportRun = createImportRun({
+      ...importRun,
+      status: "failed",
+      finishedAt: now(),
+      recordsSeen: 0,
+      recordsImported: 0,
+      recordsFailed: 1,
+      errorSummary: errorMessage,
+    });
+    await context.store.importRuns.save(failedImportRun);
+    return {
+      importRun: failedImportRun,
+      rawRecords: [],
+      parsed: [],
+    };
+  }
 }
 
 export async function suggestTransactionOrderMatchesUseCase(
@@ -98,4 +250,13 @@ export async function confirmTransactionOrderMatchUseCase(
   const confirmed = confirmMatch(match, input.confirmedAt);
   await context.store.matches.save(confirmed);
   return confirmed;
+}
+
+function summarizeErrors(errors: string[]): string | undefined {
+  if (errors.length === 0) {
+    return undefined;
+  }
+
+  const firstErrors = errors.slice(0, 3).join("; ");
+  return errors.length > 3 ? `${firstErrors}; ${errors.length - 3} more error(s)` : firstErrors;
 }

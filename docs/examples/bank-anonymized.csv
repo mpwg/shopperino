@@ -1,0 +1,4 @@
+01.07.2025;"ONLINE BANKING VOM 30.06 UM 20:42 Empfaenger: Max Mustermann Zahlungsreferenz: Einkauf Supermarkt IBAN Empfaenger: AT000000000000000000 BIC Empfaenger: TESTAT00XXX Empfaenger: Beispielgasse 1, 1000 Wien";01.07.2025;-120,23;EUR;30.06.2025 20:42:01:421
+01.07.2025;"Zahlungsempfaenger: Beispiel Versicherung AG Verwendungszweck: SEPA-Lastschrift DEMO123 mit Creditor_ID AT00ZZZ00000000000 Mandatsreferenz DEMO-MANDAT-0001 IBAN Zahlungsempfaenger: AT000000000000000001 BIC Zahlungsempfaenger: TESTAT00XXX Auftraggeberreferenz: DEMO-2025-0001";01.07.2025;-11,48;EUR;01.07.2025 02:58:22:883
+01.07.2025;"Zahlungsreferenz: BANKOMAT 00000000 K1 01.07. 11:45 Kartenzahlung mit Kartenfolge-Nr.: 1";01.07.2025;-30,00;EUR;01.07.2025 11:47:21:014
+02.07.2025;"Verwendungszweck: AMAZON PAYMENTS EUROPE Zahlungsreferenz: POS 19,99 AT D1 01.07. 15:47 Kartenzahlung mit Kartenfolge-Nr.: 1";01.07.2025;-19,99;EUR;02.07.2025 07:36:40:027
