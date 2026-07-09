@@ -1,7 +1,60 @@
 import type { BankTransaction } from "../core/bank-transaction.ts";
-import type { DataSource, ImportRun, RawRecord } from "../core/import.ts";
+import type {
+  DataSource,
+  DataSourceKind,
+  ImportInputType,
+  ImportRun,
+  RawRecord,
+  RawRecordType,
+} from "../core/import.ts";
 import type { TransactionOrderMatch } from "../core/match.ts";
 import type { Order } from "../core/order.ts";
+
+export type ImportSource = {
+  dataSourceId: string;
+  inputType: ImportInputType;
+  payload: unknown;
+  fileName?: string;
+  fileHash?: string;
+};
+
+export type ParsedImportRecord<TNormalized = unknown> = {
+  recordType: RawRecordType;
+  rawPayload: unknown;
+  normalized: TNormalized;
+  externalId?: string;
+  lineNumber?: number;
+};
+
+export type SkippedImportRecord = {
+  recordType?: RawRecordType;
+  rawPayload: unknown;
+  reason: string;
+  externalId?: string;
+  lineNumber?: number;
+};
+
+export type FailedImportRecord = {
+  recordType?: RawRecordType;
+  rawPayload: unknown;
+  error: string;
+  externalId?: string;
+  lineNumber?: number;
+};
+
+export type ImportParserResult<TNormalized = unknown> = {
+  parsed: ParsedImportRecord<TNormalized>[];
+  skipped?: SkippedImportRecord[];
+  failed?: FailedImportRecord[];
+};
+
+export type Importer<TNormalized = unknown> = {
+  name: string;
+  version: string;
+  sourceKind: DataSourceKind;
+  inputType: ImportInputType;
+  parse(input: ImportSource): Promise<ImportParserResult<TNormalized>> | ImportParserResult<TNormalized>;
+};
 
 export type DataSourceRepository = {
   save(dataSource: DataSource): Promise<void>;
