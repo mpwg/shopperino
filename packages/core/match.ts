@@ -67,6 +67,18 @@ export function confirmMatch(match: TransactionOrderMatch, confirmedAt?: string)
   };
 }
 
+export function rejectMatch(match: TransactionOrderMatch, rejectedAt?: string): TransactionOrderMatch {
+  if (match.status === "confirmed" || match.status === "manual") {
+    throw new Error("Confirmed or manual matches cannot be rejected");
+  }
+
+  return {
+    ...match,
+    status: "rejected",
+    rejectedAt: rejectedAt ?? new Date().toISOString(),
+  };
+}
+
 export function createManualMatch(input: Omit<CreateSuggestedMatchInput, "confidenceScore" | "rules">): TransactionOrderMatch {
   const now = input.createdAt ?? new Date().toISOString();
 

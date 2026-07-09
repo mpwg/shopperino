@@ -9,7 +9,9 @@ import {
   confirmTransactionOrderMatchUseCase,
   createBankTransactionUseCase,
   createInMemoryStore,
+  createManualTransactionOrderMatchUseCase,
   createOrderUseCase,
+  rejectTransactionOrderMatchUseCase,
   suggestTransactionOrderMatchesUseCase,
 } from "../packages/application/index.ts";
 import { createSqliteStore, type SqliteShopperinoStore } from "../packages/db/index.ts";
@@ -222,6 +224,113 @@ describe("ShopperinoStore contract", () => {
 
         assert.equal(suggestions.length, 0);
         assert.equal((await context.store.matches.findById(manualMatch.id))?.status, "manual");
+      } finally {
+        context.close?.();
+      }
+    });
+
+    it(`${fixture.name} keeps rejected suggestions stable and does not suggest them again`, async () => {
+      const context = fixture.create() as StoreFixture;
+      try {
+        await createBankTransactionUseCase(
+          { store: context.store },
+          {
+            id: "transaction-reject-1",
+            bankAccountId: "account-1",
+            importRunId: "bank-import-1",
+            bookingDate: "2026-07-04",
+            amountMinor: 4999,
+            currency: "EUR",
+            direction: "debit",
+            counterpartyName: "Amazon Payments",
+            description: "AMAZON MARKETPLACE",
+          },
+        );
+        await createOrderUseCase(
+          { store: context.store },
+          {
+            id: "order-reject-1",
+            merchantId: "amazon",
+            importRunId: "amazon-import-1",
+            externalOrderId: "amazon-reject-123",
+            orderDate: "2026-07-02",
+            shipmentDate: "2026-07-03",
+            status: "shipped",
+            totalAmountMinor: 4999,
+            currency: "EUR",
+          },
+        );
+
+        const suggestions = await suggestTransactionOrderMatchesUseCase({ store: context.store });
+        const rejected = await rejectTransactionOrderMatchUseCase(
+          { store: context.store },
+          { matchId: suggestions[0].id, rejectedAt: "2026-07-05T00:00:00.000Z" },
+        );
+        const repeatedSuggestions = await suggestTransactionOrderMatchesUseCase({ store: context.store });
+
+        assert.equal(rejected.status, "rejected");
+        assert.equal(rejected.rejectedAt, "2026-07-05T00:00:00.000Z");
+        assert.equal(repeatedSuggestions.length, 0);
+        assert.equal((await context.store.matches.findById(rejected.id))?.status, "rejected");
+      } finally {
+        context.close?.();
+      }
+    });
+
+    it(`${fixture.name} creates manual matches from persisted transactions and orders`, async () => {
+      const context = fixture.create() as StoreFixture;
+      try {
+        await createBankTransactionUseCase(
+          { store: context.store },
+          {
+            id: "transaction-manual-1",
+            bankAccountId: "account-1",
+            importRunId: "bank-import-1",
+            bookingDate: "2026-07-10",
+            amountMinor: 12000,
+            currency: "EUR",
+            direction: "debit",
+            description: "Credit card settlement",
+          },
+        );
+        await createOrderUseCase(
+          { store: context.store },
+          {
+            id: "order-manual-1",
+            merchantId: "amazon",
+            importRunId: "amazon-import-1",
+            externalOrderId: "amazon-manual-123",
+            orderDate: "2026-07-02",
+            status: "shipped",
+            totalAmountMinor: 4999,
+            currency: "EUR",
+            payments: [
+              {
+                id: "payment-manual-1",
+                paymentDate: "2026-07-02",
+                amountMinor: 4999,
+                paymentMethodHint: "credit_card",
+              },
+            ],
+          },
+        );
+
+        const manual = await createManualTransactionOrderMatchUseCase(
+          { store: context.store },
+          {
+            id: "manual-use-case-1",
+            bankTransactionId: "transaction-manual-1",
+            orderId: "order-manual-1",
+            orderPaymentId: "payment-manual-1",
+            reason: "Credit card statement checked by user.",
+            createdAt: "2026-07-11T00:00:00.000Z",
+          },
+        );
+
+        assert.equal(manual.status, "manual");
+        assert.equal(manual.matchType, "manual");
+        assert.equal(manual.amountDeltaMinor, 7001);
+        assert.equal((await context.store.matches.findById("manual-use-case-1"))?.status, "manual");
       } finally {
         context.close?.();
       }

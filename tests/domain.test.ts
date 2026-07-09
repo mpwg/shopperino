@@ -121,4 +121,71 @@ describe("Matching", () => {
     assert.equal(match.orderPaymentId, "payment-1");
     assert.equal(match.confidenceScore, 0.95);
   });
+
+  it("suggests a partial match for an order paid through a larger credit-card booking", () => {
+    const transaction = createBankTransaction({
+      id: "transaction-card-1",
+      bankAccountId: "account-1",
+      importRunId: "import-1",
+      bookingDate: "2026-07-04",
+      amountMinor: 12000,
+      currency: "EUR",
+      direction: "debit",
+      counterpartyName: "Card Provider",
+      description: "Monthly credit card settlement",
+    });
+    const order = createOrder({
+      id: "order-card-1",
+      merchantId: "amazon",
+      importRunId: "import-2",
+      externalOrderId: "amazon-card-123",
+      orderDate: "2026-07-02",
+      shipmentDate: "2026-07-03",
+      status: "shipped",
+      totalAmountMinor: 4999,
+      currency: "EUR",
+      paymentMethodHint: "Visa ending in 1234",
+      payments: [
+        {
+          id: "payment-card-1",
+          paymentDate: "2026-07-03",
+          amountMinor: 4999,
+          paymentMethodHint: "Visa ending in 1234",
+        },
+      ],
+    });
+
+    const match = suggestMatchForPair(transaction, order, { dateWindowDays: 7 });
+
+    assert.ok(match);
+    assert.equal(match.matchType, "partial");
+    assert.equal(match.amountDeltaMinor, 7001);
+    assert.equal(match.rules.amount, "contained_in_larger_card_charge");
+    assert.match(match.reason, /Kreditkartenbuchung/);
+  });
+
+  it("does not suggest an unrelated different amount without a credit-card hint", () => {
+    const transaction = createBankTransaction({
+      id: "transaction-no-match-1",
+      bankAccountId: "account-1",
+      importRunId: "import-1",
+      bookingDate: "2026-07-04",
+      amountMinor: 12000,
+      currency: "EUR",
+      direction: "debit",
+      description: "Some other debit",
+    });
+    const order = createOrder({
+      id: "order-no-match-1",
+      merchantId: "amazon",
+      importRunId: "import-2",
+      externalOrderId: "amazon-no-match-123",
+      orderDate: "2026-07-02",
+      status: "shipped",
+      totalAmountMinor: 4999,
+      currency: "EUR",
+    });
+
+    assert.equal(suggestMatchForPair(transaction, order, { dateWindowDays: 7 }), null);
+  });
 });
