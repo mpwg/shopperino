@@ -471,6 +471,12 @@ Das Ziel bleibt gleich: API-Daten werden in `RawRecord`, `BankAccount` und `Bank
 
 Amazon-Daten werden auf das allgemeine Bestellmodell gemappt.
 
+Das erste unterstützte Exportformat ist Amazons Datenschutz-Export
+`Your Orders/Your Amazon Orders/Order History.csv`. Der Importer liest die
+CSV-Kopfzeile, gruppiert mehrere Zeilen mit derselben `Order ID` zu einer
+Bestellung und bewahrt die Amazon-Bestellnummer sowie ASINs für spätere
+Nachvollziehbarkeit und Matching auf.
+
 Typische Zuordnung:
 
 | Amazon-Information | shopperino-Modell |
